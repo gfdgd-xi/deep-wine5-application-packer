@@ -11,10 +11,15 @@
 import tkinter as tk
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
+from PIL import Image
 import threading
 import traceback
 import shutil
 import os
+
+#################
+# 程序所需事件
+#################
 
 def button1_cl():
     path = filedialog.askdirectory(title="选择 deepin-wine5 容器", initialdir="~/.deepinwine")
@@ -76,7 +81,7 @@ def disabled_or_NORMAL_all(choose):
 def make_deb():
     clean_textbox1_things()
     disabled_or_NORMAL_all(False)
-    if e1_text.get() == "" or e2_text.get() == "" or e3_text.get() == "" or e4_text.get() == "" or e5_text.get() == "" or e6_text.get() == "" or e7_text.get() == "" or e8_text.get() == "" or e11_text.get() == "" or e12_text.get() == "" or e15_text.get() == "":
+    if e1_text.get() == "" or e2_text.get() == "" or e3_text.get() == "" or e4_text.get() == "" or e5_text.get() == "" or e6_text.get() == "" or e7_text.get() == "" or e8_text.get() == "" or e11_text.get() == "" or e12_text.get() == "":
         messagebox.showinfo(title="提示", message="必填信息没有填写完整，无法继续构建 deb 包")
         disabled_or_NORMAL_all(True)
         label13_text_change("必填信息没有填写完整，无法继续构建 deb 包")
@@ -88,7 +93,33 @@ def label13_text_change(thing):
     label13_text.set("当前 deb 打包情况：{}".format(thing))
 
 def make_deb_threading():
+    #####################################
+    # 程序创建的 deb 构建临时文件夹目录树：
+    # /XXX
+    # ├── DEBIAN
+    # │   └── control
+    # └── opt
+    # └── apps
+    #     └── XXX
+    #         ├── entries
+    #         │   ├── applications
+    #         │   │   └── XXX.desktop
+    #         │   └── icons
+    #         │       └── hicolor
+    #         │           └── scalable
+    #         │               └── apps
+    #         │                   └── XXX.png（XXX.svg）
+    #         ├── files
+    #         │   ├── files.7z
+    #         │   └── run.sh
+    #         └── info
+    #
+    # 11 directories, 6 files
+    #####################################
     try:
+        #####################
+        # 判断文件是否存在
+        #####################
         label13_text_change("正在检查文件是否存在并为后面步骤准备……")
         a = ""
         if e6_text.get() == "/":
@@ -96,7 +127,13 @@ def make_deb_threading():
         else:
             b = e6.get()
         if e9_text.get() != "":
-            a = "/opt/apps/{}/entries/icons/hicolor/scalable/apps/{}.svg".format(e1_text.get(), e1_text.get())
+            # 获取图片格式（不太准）
+            try:
+                im = Image.open(e9_text.get())
+                imms = im.format.lower()
+            except: # 未知（就直接设置为 svg 后缀）
+                imms = ".svg"
+            a = "/opt/apps/{}/entries/icons/hicolor/scalable/apps/{}.{}".format(e1_text.get(), e1_text.get(), imms)
             if not os.path.exists(e9_text.get()):
                 messagebox.showerror(title="提示", message="图标的路径填写错误，无法进行构建 deb 包")
                 disabled_or_NORMAL_all(True)
@@ -107,40 +144,69 @@ def make_deb_threading():
             disabled_or_NORMAL_all(True)
             label13_text_change("图标的路径填写错误，无法进行构建 deb 包")
             return
+        #############
+        # 删除文件
+        #############
         label13_text_change("正在删除对构建 deb 包有影响的文件……")
         if os.path.exists("{}/DEBIAN".format(e11_text.get())):
             shutil.rmtree("{}/DEBIAN".format(e11_text.get()))
         if os.path.exists("{}/opt".format(e11_text.get())):
             shutil.rmtree("{}/opt".format(e11_text.get()))
+        ###############
+        # 创建目录
+        ###############
         label13_text_change("正在创建目录……")
         os.makedirs("{}/DEBIAN".format(e11_text.get()))
         os.makedirs("{}/opt/apps/{}/entries/applications".format(e11_text.get(), e1_text.get()))
         os.makedirs("{}/opt/apps/{}/entries/icons/hicolor/scalable/apps".format(e11_text.get(), e1_text.get()))
         os.makedirs("{}/opt/apps/{}/files".format(e11_text.get(), e1_text.get()))
+        ###############
+        # 创建文件
+        ###############
         label13_text_change("正在创建文件……")
         os.mknod("{}/DEBIAN/control".format(e11_text.get()))
         os.mknod("{}/opt/apps/{}/entries/applications/{}.desktop".format(e11_text.get(), e1_text.get(), e1_text.get()))
         os.mknod("{}/opt/apps/{}/files/run.sh".format(e11_text.get(), e1_text.get()))
         os.mknod("{}/opt/apps/{}/info".format(e11_text.get(), e1_text.get()))
+        ###############
+        # 压缩容器
+        ###############
         label13_text_change("正在打包 deepin-wine5 容器")
         run_command("7z a {}/opt/apps/{}/files/files.7z {}/*".format(e11_text.get(), e1_text.get(), b))
+        ###############
+        # 复制图片
+        ###############
         label13_text_change("正在复制文件……")
         if e9_text.get() != "":
-            shutil.copy(e9_text.get(), "{}/opt/apps/{}/entries/icons/hicolor/scalable/apps/{}.svg".format(e11_text.get(), e1_text.get(), e1_text.get()))
+            shutil.copy(e9_text.get(), "{}/opt/apps/{}/entries/icons/hicolor/scalable/apps/{}.{}".format(e11_text.get(), e1_text.get(), e1_text.get(), imms))
+        ################
+        # 获取文件大小
+        ################
         label13_text_change("正在计算文件大小……")
         size = getFileFolderSize(e11_text.get()) / 1024
+        ################
+        # 写入文本文档
+        ################
         label13_text_change("正在写入文件……")
         write_txt("{}/DEBIAN/control".format(e11_text.get()), 'Package: {}\nVersion: {}\nArchitecture: i386\nMaintainer: {}\nDepends: deepin-wine5:i386 (>= 5.0.4-1), deepin-wine5-i386 (>= 5.0.4-1), deepin-wine-helper:i386 (>= 5.1.1-1)\nConflicts: {}\nReplaces: {}\nProvides: {}\nSection: non-free/otherosfs\nPriority: optional\nMulti-Arch: foreign\nDescription: {}\nInstalled-Size: {}\n'.format(e1_text.get(), e2_text.get(), e4_text.get(), e1_text.get(), e1_text.get(), e1_text.get(), e3_text.get(), str(size)))
-        write_txt("{}/opt/apps/{}/entries/applications/{}.desktop".format(e11_text.get(), e1_text.get(), e1_text.get()), '#!/usr/bin/env xdg-open\n[Desktop Entry]\nEncoding=UTF-8\nType=Application\nX-Created-By={}\nCategories={};\nIcon={}\nExec="/opt/apps/{}/files/run.sh" {}\nName={}\nComment={}\nMimeType={}'.format(e4_text.get(), option1_text.get(), a, e1_text.get(), e15_text.get(), e8_text.get(), e3_text.get(), e10_text.get()))
-        write_txt("{}/opt/apps/{}/files/run.sh".format(e11_text.get(), e1_text.get()), '''#!/bin/sh\n\n#   Copyright (C) 2020 Deepin, Inc.\n\nBOTTLENAME="{}"\nAPPVER="{}"\nEXEC_PATH="{}"\nSTART_SHELL_PATH="/opt/deepinwine/tools/run_v3.sh"\n\nexport MIME_TYPE=""\nexport DEB_PACKAGE_NAME="{}"\nexport APPRUN_CMD="deepin-wine5"\n\nif [ -n "$EXEC_PATH" ];then\n        $START_SHELL_PATH $BOTTLENAME $APPVER "$EXEC_PATH" "$@"\n    else\n        $START_SHELL_PATH $BOTTLENAME $APPVER "uninstaller.exe" "$@"\nfi'''.format(e5_text.get(), e2_text.get(), e7_text.get(), e1_text.get()))
+        write_txt("{}/opt/apps/{}/entries/applications/{}.desktop".format(e11_text.get(), e1_text.get(), e1_text.get()), '#!/usr/bin/env xdg-open\n[Desktop Entry]\nEncoding=UTF-8\nType=Application\nX-Created-By={}\nCategories={};\nIcon={}\nExec="/opt/apps/{}/files/run.sh" {}\nName={}\nComment={}\nMimeType={}\nGenericName={}\nTerminal=false\nStartupNotify=false\n'.format(e4_text.get(), option1_text.get(), a, e1_text.get(), e15_text.get(), e8_text.get(), e3_text.get(), e10_text.get(), e1_text.get()))
+        write_txt("{}/opt/apps/{}/files/run.sh".format(e11_text.get(), e1_text.get()), '''#!/bin/sh\n\n#   Copyright (C) 2020 Deepin, Inc.\n\nBOTTLENAME="{}"\nAPPVER="{}"\nEXEC_PATH="{}"\nSTART_SHELL_PATH="/opt/deepinwine/tools/run_v3.sh"\n\nexport MIME_TYPE=""\nexport DEB_PACKAGE_NAME="{}"\nexport APPRUN_CMD="deepin-wine5"\n\nif [ -n "$EXEC_PATH" ];then\n        $START_SHELL_PATH $BOTTLENAME $APPVER "$EXEC_PATH" "$@"\n    else\n        $START_SHELL_PATH $BOTTLENAME $APPVER "uninstaller.exe" "$@"\nfi'''.format(e5_text.get(), e2_text.get(), e7_text.get(), e1_text.get(), e3_text))
         write_txt("{}/opt/apps/{}/info".format(e11_text.get(), e1_text.get()), '{\n    "appid": "' + e1_text.get() + '",\n    "name": "' + e8_text.get() + '",\n    "version": "' + e2_text.get() + '",\n    "arch": ["i386"],\n    "permissions": {\n        "autostart": false,\n        "notification": false,\n        "trayicon": true,\n        "clipboard": true,\n        "account": false,\n        "bluetooth": false,\n        "camera": false,\n        "audio_record": false,\n        "installed_apps": false\n    }\n}')
+        ################
+        # 修改文件权限
+        ################
         label13_text_change("正在修改文件权限……")
         run_command("chmod 644 {}/opt/apps/{}/files/run.sh".format(e11_text.get(), e1_text.get()))
         run_command("chmod 644 {}/opt/apps/{}/info".format(e11_text.get(), e1_text.get()))
         run_command("chmod 755 {}/opt/apps/{}/files/run.sh".format(e11_text.get(), e1_text.get()))
-        run_command("chmod 644 {}/opt/apps/{}/entries/applications/{}.desktop".format(e11_text.get(), e1_text.get(), e1_text.get()))
+        ################
+        # 构建 deb 包
+        ################
         label13_text_change("正在构建 deb 包……")
         run_command("dpkg -b {} {}".format(e11_text.get(), e12_text.get()))
+        ################
+        # 完成构建
+        ################
         label13_text_change("完成构建！")
         disabled_or_NORMAL_all(True)
     except Exception as e:
@@ -199,10 +265,10 @@ def about_this_program():
 
 # 显示“提示”窗口
 def helps():
-    messagebox.showinfo(title="提示", message="提示：\n1、deb 打包软件包名要求：\n软件包名只能含有小写字母(a-z)、数字(0-9)、加号(+)和减号(-)、以及点号(.)，软件包名最短长度两个字符；它必须以字母开头\n2、如果要填写路径，有“浏览……”按钮的是要填本计算机对应文件的路径，否则就是填写安装到其他计算机使用的路径\n3、输入 deepin-wine5 的容器路径时最后面请不要输入“/”\n4、输入可执行文件的运行路径时是以“C:/XXX/XXX.exe”的格式进行输入，默认是以 C： 为开头，不用“\”做命令的分隔，而是用“/”")
+    messagebox.showinfo(title="提示", message="提示：\n1、deb 打包软件包名要求：\n软件包名只能含有小写字母(a-z)、数字(0-9)、加号(+)和减号(-)、以及点号(.)，软件包名最短长度两个字符；它必须以字母开头\n2、如果要填写路径，有“浏览……”按钮的是要填本计算机对应文件的路径，否则就是填写安装到其他计算机使用的路径\n3、输入 deepin-wine5 的容器路径时最后面请不要输入“/”\n4、输入可执行文件的运行路径时是以“C:/XXX/XXX.exe”的格式进行输入，默认是以 C： 为开头，不用“\”做命令的分隔，而是用“/”\n5、.desktop 的图标只支持 PNG 格式和 SVG 格式，其他格式无法显示图标")
 
 ###############
-#
+# 窗口创建
 ###############
 window = tk.Tk()
 window.title("deepin-wine5 应用打包器")
@@ -259,17 +325,17 @@ button5 = tk.Button(window, text="打包……", command=make_deb)
 option1 = tk.OptionMenu(window, option1_text, "Network", "Chat", "Audio", "Video", "Graphics", "Office", "Translation", "Development", "Utility")
 textbox1 = tk.Text(window, width=100, height=4)
 textbox1.configure(state=tk.DISABLED)
-menu = tk.Menu(window) # 设置菜单栏
-programmenu = tk.Menu(menu,tearoff=0) # 设置“程序”菜单栏
-menu.add_cascade(label="程序",menu=programmenu)
-programmenu.add_command(label="退出程序",command=window.quit) # 设置“退出程序”项
-help = tk.Menu(menu,tearoff=0) # 设置“帮助”菜单栏
-menu.add_cascade(label="帮助",menu=help)
-help.add_command(label="小提示",command=helps) # 设置“小提示”项
-help.add_separator() # 设置分界线
-help.add_command(label="关于这个程序",command=about_this_program) # 设置“关于这个程序”项
+menu = tk.Menu(window)  # 设置菜单栏
+programmenu = tk.Menu(menu, tearoff=0)  # 设置“程序”菜单栏
+menu.add_cascade(label="程序", menu=programmenu)
+programmenu.add_command(label="退出程序", command=window.quit)  # 设置“退出程序”项
+help = tk.Menu(menu, tearoff=0) # 设置“帮助”菜单栏
+menu.add_cascade(label="帮助", menu=help)
+help.add_command(label="小提示", command=helps)  # 设置“小提示”项
+help.add_separator()  # 设置分界线
+help.add_command(label="关于这个程序", command=about_this_program)  # 设置“关于这个程序”项
 # 添加控件
-window.config(menu=menu) # 显示菜单栏
+window.config(menu=menu)  # 显示菜单栏
 label1.grid(row=0, column=0)
 e1.grid(row=0, column=1)
 label2.grid(row=1, column=0)
