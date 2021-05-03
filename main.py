@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #########################################################################
 # 作者：gfdgd xi
-# 版本：1.0.0
+# 版本：1.0.1
 # 感谢：感谢 deepin-wine 团队，提供了 deepin-wine 给大家使用，让我能做这个程序
 # 基于 Python3 的 tkinter 构建
 #########################################################################
@@ -261,7 +261,7 @@ def getFileFolderSize(fileOrFolderPath):
 
 # 显示“关于这个程序”窗口
 def about_this_program():
-    messagebox.showinfo(title="关于这个程序", message="一个基于 Python3 的 tkinter 制作的 deepin-wine5 应用打包器\n版本：1.0\n适用平台：Linux\ntkinter 版本：" + str(tk.TkVersion))
+    messagebox.showinfo(title="关于这个程序", message="一个基于 Python3 的 tkinter 制作的 deepin-wine5 应用打包器\n版本：1.0.1\n适用平台：Linux\ntkinter 版本：" + str(tk.TkVersion))
 
 # 显示“提示”窗口
 def helps():
